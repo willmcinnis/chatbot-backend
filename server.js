@@ -4,8 +4,12 @@ const OpenAI = require('openai');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: ['https://chatbot-frontend-1-f911.onrender.com', 'http://localhost:3000']
+}));
 app.use(express.json());
+
+// Rest of your server code...
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
