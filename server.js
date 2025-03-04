@@ -4,19 +4,19 @@ const OpenAI = require('openai');
 require('dotenv').config();
 
 const app = express();
-app.use(cors({
-  origin: ['https://chatbot-frontend-1-f911.onrender.com', 'http://localhost:3000']
-}));
-app.use(express.json());
 
-// Rest of your server code...
+// Enable CORS for all origins during testing
+app.use(cors());
+app.use(express.json());
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// Store threads in memory (use a database in production)
-const threads = new Map();
+// Simple test route
+app.get('/', (req, res) => {
+  res.json({ message: 'Backend server is running' });
+});
 
 app.post('/api/chat', async (req, res) => {
   try {
