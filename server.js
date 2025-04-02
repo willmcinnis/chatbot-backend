@@ -196,9 +196,9 @@ app.post('/api/chat', async (req, res) => {
       
       console.log(`Train part identified: ${trainPartRequest.partName}, Image URL: ${imageUrl}`);
       
-      // Prepare response with description
+      // Prepare response with description removed
       const response = {
-        message: `Here's the ${trainPartRequest.displayName}. ${trainPartRequest.description || ''}`,
+        message: `Here's the ${trainPartRequest.displayName}`, // Remove description
         threadId: threadId || 'local',
         isTrainPart: true,
         trainPart: {
@@ -206,7 +206,8 @@ app.post('/api/chat', async (req, res) => {
           displayName: trainPartRequest.displayName,
           filename: trainPartRequest.filename,
           imageUrl: imageUrl,
-          description: trainPartRequest.description || ''
+          // Still including description in the data, but not displaying it
+          description: '' 
         }
       };
       
