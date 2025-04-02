@@ -1,0 +1,78 @@
+{
+  "alerter": {
+    "displayName": "SD60M Alerter Q2518",
+    "description": "The Q2518 alerter system monitors engineer activity and sounds an alarm if no control inputs are detected within a specified time period."
+  },
+  "distributed power": {
+    "displayName": "SD60M Distributed Power LSI Rack",
+    "description": "The Distributed Power LSI Rack contains the control systems that allow multiple locomotives to be operated from a single control point."
+  },
+  "computer screen": {
+    "displayName": "SD60M HVC 60 Series Computer Screen",
+    "description": "The HVC 60 Series Computer Screen provides the interface for monitoring and controlling locomotive systems."
+  },
+  "circuit breaker panel": {
+    "displayName": "SD60M HVC Circuit Breaker Panel",
+    "description": "The Circuit Breaker Panel houses the electrical protection devices for various locomotive systems."
+  },
+  "isolation panel behind": {
+    "displayName": "SD60M HVC Isolation Panel (Rear View)",
+    "description": "Rear view of the Isolation Panel which contains switches that can electrically isolate different locomotive systems."
+  },
+  "isolation panel inside": {
+    "displayName": "SD60M HVC Isolation Panel (Interior View)",
+    "description": "Interior view of the Isolation Panel showing the internal wiring and components."
+  },
+  "relay panel right wall": {
+    "displayName": "SD60M HVC Relay Panel (Right Wall)",
+    "description": "The Relay Panel mounted on the right wall contains electrical relays that control various locomotive functions."
+  },
+  "relay panel right": {
+    "displayName": "SD60M HVC Relay Panel (Right Side)",
+    "description": "Right side view of the Relay Panel which contains numerous electrical relays for locomotive control systems."
+  },
+  "relay panel upper middle": {
+    "displayName": "SD60M HVC Relay Panel (Upper Middle)",
+    "description": "Upper middle section of the Relay Panel showing key electrical control relays."
+  },
+  "relay panel upper right": {
+    "displayName": "SD60M HVC Relay Panel (Upper Right)",
+    "description": "Upper right section of the Relay Panel containing critical locomotive control relays."
+  },
+  "relay panel": {
+    "displayName": "SD60M HVC Relay Panel",
+    "description": "The main Relay Panel houses electrical relays that control various locomotive systems and functions."
+  },
+  "smartstart": {
+    "displayName": "SD60M HVC SmartStart 2E",
+    "description": "The SmartStart 2E system manages the locomotive startup sequence and provides automatic engine start/stop capabilities."
+  },
+  "event recorder": {
+    "displayName": "SD60M Quantum Event Recorder",
+    "description": "The Quantum Event Recorder is similar to an aircraft's black box, recording operational data and control inputs for later analysis or accident investigation."
+  },
+  "remote card download": {
+    "displayName": "SD60M Quantum Remote Card Download",
+    "description": "The Remote Card Download system allows event recorder data to be retrieved without physically removing the recorder."
+  },
+  "resistors": {
+    "displayName": "SD60M Resistors & Diodes LSI Rack",
+    "description": "This rack contains resistors and diodes used in the locomotive's electrical systems for power management and signal conditioning."
+  },
+  "sub-base fast break": {
+    "displayName": "SD60M Sub-Base Fast Break Rear",
+    "description": "Rear view of the Sub-Base Fast Break system which provides emergency power cutoff capabilities."
+  },
+  "tb30s board": {
+    "displayName": "SD60M TB30S Board Panel Style",
+    "description": "The TB30S Board contains terminal blocks for connecting various electrical systems within the locomotive."
+  },
+  "terminal board": {
+    "displayName": "SD60M Terminal Board 30S X Style",
+    "description": "The Terminal Board provides connection points for the locomotive's electrical systems in the X-style configuration."
+  },
+  "dc-dc converter": {
+    "displayName": "SD60M Wilmore DC-DC Converter",
+    "description": "The Wilmore DC-DC Converter changes the voltage levels within the locomotive's electrical system as needed for various components."
+  }
+}
