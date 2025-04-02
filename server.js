@@ -8,33 +8,19 @@ require('dotenv').config();
 
 const app = express();
 
-// Enable CORS for all origins during testing
-app.use(cors());
+// Enable CORS with more specific options
+app.use(cors({
+  origin: '*', // Allow all origins
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 
 // Set up OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
-
-// GitHub repository information
-const GITHUB_USER = 'willmcinnis'; // Replace with your GitHub username
-const GITHUB_REPO = 'train-images';
-const GITHUB_BRANCH = 'main';
-
-// Cache settings
-const CACHE_DIR = path.join(__dirname, 'train-images');
-const METADATA_CACHE_PATH = path.join(CACHE_DIR, 'metadata.json');
-const METADATA_CACHE_TTL = 3600000; // 1 hour in milliseconds
-
-// Create cache directory if it doesn't exist
-if (!fs.existsSync(CACHE_DIR)) {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
-}
-
-// In-memory cache for train part metadata
-let trainMetadataCache = null;
-let lastMetadataFetch = 0;
 
 // Define a mapping for user-friendly terms to actual filenames
 const trainPartMappings = {
@@ -147,77 +133,8 @@ function identifyTrainPart(message) {
   return null;
 }
 
-// Function to fetch and cache metadata from GitHub
-async function fetchTrainMetadata() {
-  try {
-    // Check if cache is still valid
-    const now = Date.now();
-    if (
-      trainMetadataCache &&
-      lastMetadataFetch > 0 &&
-      now - lastMetadataFetch < METADATA_CACHE_TTL
-    ) {
-      return trainMetadataCache;
-    }
-
-    // Check if cached file exists and is recent
-    if (
-      fs.existsSync(METADATA_CACHE_PATH) &&
-      now - fs.statSync(METADATA_CACHE_PATH).mtimeMs < METADATA_CACHE_TTL
-    ) {
-      const cachedData = JSON.parse(fs.readFileSync(METADATA_CACHE_PATH, 'utf-8'));
-      trainMetadataCache = cachedData;
-      lastMetadataFetch = now;
-      return cachedData;
-    }
-
-    // Fetch from GitHub if cache is invalid or expired
-    const metadataUrl = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/metadata.json`;
-    const response = await axios.get(metadataUrl);
-    
-    // Update cache
-    trainMetadataCache = response.data;
-    lastMetadataFetch = now;
-    
-    // Save to file cache
-    fs.writeFileSync(METADATA_CACHE_PATH, JSON.stringify(response.data, null, 2));
-    
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching train metadata:', error);
-    
-    // If we have a cached version, return that despite the error
-    if (trainMetadataCache) {
-      return trainMetadataCache;
-    }
-    
-    // If we have a file cache, return that
-    if (fs.existsSync(METADATA_CACHE_PATH)) {
-      return JSON.parse(fs.readFileSync(METADATA_CACHE_PATH, 'utf-8'));
-    }
-    
-    // Otherwise return an empty object
-    return {};
-  }
-}
-
-// Helper function to identify view type from message
-function identifyView(message, availableViews) {
-  for (const view of availableViews) {
-    if (message.includes(view.toLowerCase())) {
-      return view;
-    }
-  }
-  return null;
-}
-
-// Function to get image URL from GitHub
-function getGitHubImageUrl(partName, viewType) {
-  return `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${partName}/${viewType}.jpg`;
-}
-
 // Setup image directory - you should store images in this folder
-const IMAGES_DIR = path.join(__dirname, 'images', 'SD60M');
+const IMAGES_DIR = path.join(__dirname, 'Train-Images');
 
 // Create directory if it doesn't exist
 if (!fs.existsSync(IMAGES_DIR)) {
@@ -232,8 +149,7 @@ app.get('/', (req, res) => {
 // API endpoint to get train metadata
 app.get('/api/train/metadata', async (req, res) => {
   try {
-    const metadata = await fetchTrainMetadata();
-    res.json(metadata);
+    res.json(trainPartMetadata);
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Error fetching train metadata' });
@@ -243,53 +159,24 @@ app.get('/api/train/metadata', async (req, res) => {
 // Endpoint to serve train images directly from the filesystem
 app.get('/api/train/image/:filename', (req, res) => {
   try {
-    const filename = req.params.filename;
+    const filename = decodeURIComponent(req.params.filename);
     const imagePath = path.join(IMAGES_DIR, filename);
+    
+    console.log(`Attempting to serve image: ${imagePath}`);
     
     // Check if file exists
     if (fs.existsSync(imagePath)) {
+      // Set appropriate headers
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Type', 'image/jpeg');
       return res.sendFile(imagePath);
     } else {
+      console.error(`Image not found: ${imagePath}`);
       return res.status(404).json({ error: 'Image not found' });
     }
   } catch (error) {
     console.error('Error serving image:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// API endpoint to get train part image
-app.get('/api/train/image/:partName/:viewType', async (req, res) => {
-  try {
-    const { partName, viewType } = req.params;
-    
-    // Create cache folder for this part if it doesn't exist
-    const partCacheDir = path.join(CACHE_DIR, partName);
-    if (!fs.existsSync(partCacheDir)) {
-      fs.mkdirSync(partCacheDir, { recursive: true });
-    }
-    
-    // Path to cached image
-    const cachedImagePath = path.join(partCacheDir, `${viewType}.jpg`);
-    
-    // Check if we have a cached version
-    if (fs.existsSync(cachedImagePath)) {
-      return res.sendFile(cachedImagePath);
-    }
-    
-    // Fetch image from GitHub
-    const imageUrl = getGitHubImageUrl(partName, viewType);
-    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-    
-    // Save to cache
-    fs.writeFileSync(cachedImagePath, response.data);
-    
-    // Send image
-    res.set('Content-Type', 'image/jpeg');
-    res.send(response.data);
-  } catch (error) {
-    console.error('Error fetching train image:', error);
-    res.status(404).send('Image not found');
+    res.status(500).json({ error: 'Server error: ' + error.message });
   }
 });
 
@@ -303,7 +190,11 @@ app.post('/api/chat', async (req, res) => {
     
     if (trainPartRequest) {
       // Handle train part request directly
-      const imageUrl = `/api/train/image/${encodeURIComponent(trainPartRequest.filename)}`;
+      // Use absolute URL with backend domain for the image
+      const backendUrl = process.env.BACKEND_URL || 'https://chatbot-backend-kucx.onrender.com';
+      const imageUrl = `${backendUrl}/api/train/image/${encodeURIComponent(trainPartRequest.filename)}`;
+      
+      console.log(`Train part identified: ${trainPartRequest.partName}, Image URL: ${imageUrl}`);
       
       // Prepare response with description
       const response = {
@@ -365,7 +256,7 @@ app.post('/api/chat', async (req, res) => {
     });
   } catch (error) {
     console.error('Error:', error);
-    res.status(500).json({ error: 'Error processing request' });
+    res.status(500).json({ error: 'Error processing request: ' + error.message });
   }
 });
 
