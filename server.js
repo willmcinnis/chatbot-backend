@@ -95,6 +95,19 @@ const schematicMappings = {
   '62': 'WD03463 SD-60 PAGE 62.png'
 };
 
+// Define a mapping for IETMS schematic pages
+const ietmsMappings = {
+  '2': '24-2-19294 PTC IETMS PAGE 2.png',
+  '3': '24-2-19294 PTC IETMS PAGE 3.png',
+  '4': '24-2-19294 PTC IETMS PAGE 4.png',
+  '5': '24-2-19294 PTC IETMS PAGE 5.png',
+  '6': '24-2-19294 PTC IETMS PAGE 6.png',
+  '7': '24-2-19294 PTC IETMS PAGE 7.png',
+  '8': '24-2-19294 PTC IETMS PAGE 8.png',
+  '9': '24-2-19294 PTC IETMS PAGE 9.png',
+  '10': '24-2-19294 PTC IETMS PAGE 10.png'
+};
+
 // Load metadata for train parts
 let trainPartMetadata = {};
 try {
@@ -202,6 +215,11 @@ function identifySchematic(message) {
     'sd60 page'
   ];
   
+  // Don't check for schematic requests if it's specifically asking for IETMS
+  if (lowercaseMessage.includes('ietms') || lowercaseMessage.includes('ptc')) {
+    return null;
+  }
+  
   let isSchematicRequest = false;
   for (const phrase of schematicRequestPhrases) {
     if (lowercaseMessage.includes(phrase)) {
@@ -253,9 +271,93 @@ function identifySchematic(message) {
   return null;
 }
 
+// Function to identify IETMS schematic page from user message
+function identifyIETMSSchematic(message) {
+  const lowercaseMessage = message.toLowerCase();
+  
+  // Check if the message is a request to show an IETMS schematic
+  const ietmsRequestPhrases = [
+    'show me a schematic of ietms',
+    'show me the schematic of ietms',
+    'show me the ietms schematic',
+    'show ietms schematic',
+    'can i see ietms schematic',
+    'display ietms schematic',
+    'show me ietms diagram',
+    'ietms page',
+    'ptc ietms',
+    'ptc page',
+    'show me the schematic of ptc'
+  ];
+  
+  let isIETMSRequest = false;
+  for (const phrase of ietmsRequestPhrases) {
+    if (lowercaseMessage.includes(phrase) || 
+        (lowercaseMessage.includes('schematic') && 
+         (lowercaseMessage.includes('ietms') || lowercaseMessage.includes('ptc')))) {
+      isIETMSRequest = true;
+      break;
+    }
+  }
+  
+  if (!isIETMSRequest) {
+    return null;
+  }
+  
+  // Look for page numbers in the message
+  const pageRegex = /page\s+(\d+)/i;
+  const pageMatch = message.match(pageRegex);
+  
+  if (pageMatch && pageMatch[1]) {
+    const pageNumber = pageMatch[1];
+    
+    // Check if we have this page in our mapping
+    if (ietmsMappings[pageNumber]) {
+      return {
+        pageNumber: pageNumber,
+        filename: ietmsMappings[pageNumber],
+        displayName: `PTC IETMS Schematic Page ${pageNumber}`,
+        description: `PTC IETMS schematic diagram, page ${pageNumber}`,
+        type: 'ietms'
+      };
+    }
+  }
+  
+  // Alternative regex to find just numbers that might be page references
+  const numRegex = /\b(\d+)\b/g;
+  const numbers = [...message.matchAll(numRegex)];
+  
+  for (const match of numbers) {
+    const pageNumber = match[1];
+    if (ietmsMappings[pageNumber]) {
+      return {
+        pageNumber: pageNumber,
+        filename: ietmsMappings[pageNumber],
+        displayName: `PTC IETMS Schematic Page ${pageNumber}`,
+        description: `PTC IETMS schematic diagram, page ${pageNumber}`,
+        type: 'ietms'
+      };
+    }
+  }
+  
+  // If no specific page is requested, default to page 2 (first page)
+  if (ietmsMappings['2']) {
+    return {
+      pageNumber: '2',
+      filename: ietmsMappings['2'],
+      displayName: `PTC IETMS Schematic Page 2`,
+      description: `PTC IETMS schematic diagram, page 2 (first page)`,
+      type: 'ietms'
+    };
+  }
+  
+  return null;
+}
+
 // Setup image directories
 const IMAGES_DIR = path.join(__dirname, 'Train-Images');
 const SCHEMATICS_DIR = path.join(__dirname, 'Train-Schematics');
+const IETMS_DIR = path.join(__dirname, 'IETMS-Schematics');
 
 // Create directories if they don't exist
 if (!fs.existsSync(IMAGES_DIR)) {
@@ -264,6 +366,10 @@ if (!fs.existsSync(IMAGES_DIR)) {
 
 if (!fs.existsSync(SCHEMATICS_DIR)) {
   fs.mkdirSync(SCHEMATICS_DIR, { recursive: true });
+}
+
+if (!fs.existsSync(IETMS_DIR)) {
+  fs.mkdirSync(IETMS_DIR, { recursive: true });
 }
 
 // Simple test route
@@ -329,7 +435,31 @@ app.get('/api/schematic/image/:filename', (req, res) => {
   }
 });
 
-// Enhanced chat API that checks for train part and schematic requests
+// Endpoint to serve IETMS schematic images
+app.get('/api/ietms/image/:filename', (req, res) => {
+  try {
+    const filename = decodeURIComponent(req.params.filename);
+    const imagePath = path.join(IETMS_DIR, filename);
+    
+    console.log(`Attempting to serve IETMS schematic: ${imagePath}`);
+    
+    // Check if file exists
+    if (fs.existsSync(imagePath)) {
+      // Set appropriate headers
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Content-Type', 'image/png');
+      return res.sendFile(imagePath);
+    } else {
+      console.error(`IETMS schematic not found: ${imagePath}`);
+      return res.status(404).json({ error: 'IETMS schematic not found' });
+    }
+  } catch (error) {
+    console.error('Error serving IETMS schematic:', error);
+    res.status(500).json({ error: 'Server error: ' + error.message });
+  }
+});
+
+// Enhanced chat API that checks for train part, schematic, and IETMS requests
 app.post('/api/chat', async (req, res) => {
   try {
     const { message, threadId } = req.body;
@@ -363,7 +493,36 @@ app.post('/api/chat', async (req, res) => {
       return res.json(response);
     }
     
-    // Then check if the message is asking about a schematic
+    // Then check if the message is asking about an IETMS schematic
+    // We check IETMS before regular schematics because it's more specific
+    const ietmsRequest = identifyIETMSSchematic(message);
+    
+    if (ietmsRequest) {
+      // Handle IETMS schematic request directly
+      // Use absolute URL with backend domain for the image
+      const backendUrl = process.env.BACKEND_URL || 'https://chatbot-backend-kucx.onrender.com';
+      const imageUrl = `${backendUrl}/api/ietms/image/${encodeURIComponent(ietmsRequest.filename)}`;
+      
+      console.log(`IETMS schematic identified: ${ietmsRequest.pageNumber}, Image URL: ${imageUrl}`);
+      
+      // Prepare response
+      const response = {
+        message: `Here's the ${ietmsRequest.displayName}`,
+        threadId: threadId || 'local',
+        isTrainPart: true, // Reuse the same frontend handling
+        trainPart: {
+          name: `ietms_page_${ietmsRequest.pageNumber}`,
+          displayName: ietmsRequest.displayName,
+          filename: ietmsRequest.filename,
+          imageUrl: imageUrl,
+          description: ietmsRequest.description
+        }
+      };
+      
+      return res.json(response);
+    }
+    
+    // Then check if the message is asking about a regular schematic
     const schematicRequest = identifySchematic(message);
     
     if (schematicRequest) {
@@ -391,7 +550,7 @@ app.post('/api/chat', async (req, res) => {
       return res.json(response);
     }
     
-    // If not a train part or schematic request, proceed with OpenAI
+    // If not a train part, IETMS, or schematic request, proceed with OpenAI
     let thread;
     
     // Create or retrieve thread
