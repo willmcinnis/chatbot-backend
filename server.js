@@ -17,10 +17,33 @@ app.use(cors({
 
 app.use(express.json());
 
-// Set up OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Enhanced OpenAI client setup with better error handling
+const setupOpenAI = () => {
+  const apiKey = process.env.OPENAI_API_KEY;
+  
+  if (!apiKey) {
+    console.error('Missing OPENAI_API_KEY in environment variables');
+    throw new Error('OpenAI API key is required');
+  }
+  
+  const assistantId = process.env.ASSISTANT_ID;
+  
+  if (!assistantId) {
+    console.error('Missing ASSISTANT_ID in environment variables');
+    throw new Error('Assistant ID is required');
+  }
+  
+  console.log(`Setting up OpenAI client with Assistant ID: ${assistantId.substring(0, 5)}...`);
+  
+  return new OpenAI({
+    apiKey: apiKey,
+    timeout: 60000, // 60 second timeout
+    maxRetries: 3
+  });
+};
+
+// Set up OpenAI client with enhanced error checking
+const openai = setupOpenAI();
 
 // Define a mapping for user-friendly terms to actual filenames
 const trainPartMappings = {
@@ -421,9 +444,13 @@ app.get('/api/schematic/image/:filename', (req, res) => {
     
     // Check if file exists
     if (fs.existsSync(imagePath)) {
-      // Set appropriate headers
+      // Set appropriate headers for PNG with transparency
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Content-Type', 'image/png');
+      // Disable caching to ensure fresh images are served
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       return res.sendFile(imagePath);
     } else {
       console.error(`Schematic not found: ${imagePath}`);
@@ -445,9 +472,13 @@ app.get('/api/ietms/image/:filename', (req, res) => {
     
     // Check if file exists
     if (fs.existsSync(imagePath)) {
-      // Set appropriate headers
+      // Set appropriate headers for PNG with transparency
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Content-Type', 'image/png');
+      // Disable caching to ensure fresh images are served
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       return res.sendFile(imagePath);
     } else {
       console.error(`IETMS schematic not found: ${imagePath}`);
@@ -566,31 +597,66 @@ app.post('/api/chat', async (req, res) => {
       content: message
     });
     
-    // Run assistant
-    const run = await openai.beta.threads.runs.create(thread.id, {
-      assistant_id: process.env.ASSISTANT_ID
-    });
-    
-    // Wait for completion
-    let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-    while (runStatus.status !== 'completed') {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+    // Run assistant with improved error handling
+    try {
+      const run = await openai.beta.threads.runs.create(thread.id, {
+        assistant_id: process.env.ASSISTANT_ID
+      });
       
-      if (runStatus.status === 'failed') {
-        throw new Error('Assistant run failed');
+      // Wait for completion with timeout and error handling
+      let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+      let attempts = 0;
+      const maxAttempts = 30; // 30 seconds timeout
+      
+      while (runStatus.status !== 'completed' && attempts < maxAttempts) {
+        // Add more detailed logging
+        console.log(`Run status: ${runStatus.status}, attempt ${attempts + 1}/${maxAttempts}`);
+        
+        if (runStatus.status === 'failed') {
+          console.error('Run failed with error:', runStatus.last_error);
+          throw new Error(`Assistant run failed: ${runStatus.last_error?.message || 'Unknown error'}`);
+        }
+        
+        if (runStatus.status === 'expired') {
+          throw new Error('Assistant run expired: took too long to complete');
+        }
+        
+        // Wait before checking again
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        attempts++;
+        
+        // Refresh status
+        runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
       }
+      
+      if (attempts >= maxAttempts) {
+        throw new Error('Assistant run timed out after 30 seconds');
+      }
+      
+      // Get messages
+      const messages = await openai.beta.threads.messages.list(thread.id);
+      
+      if (messages.data.length === 0) {
+        throw new Error('No response received from assistant');
+      }
+      
+      const lastMessage = messages.data[0];
+      
+      res.json({
+        message: lastMessage.content[0].text.value,
+        threadId: thread.id,
+        isTrainPart: false
+      });
+    } catch (error) {
+      console.error('OpenAI Assistant Error:', error);
+      
+      // Create a fallback response
+      res.json({
+        message: "I'm having trouble connecting to my knowledge base right now. Please try again in a moment, or try asking a different question.",
+        threadId: thread.id,
+        isTrainPart: false
+      });
     }
-    
-    // Get messages
-    const messages = await openai.beta.threads.messages.list(thread.id);
-    const lastMessage = messages.data[0];
-    
-    res.json({
-      message: lastMessage.content[0].text.value,
-      threadId: thread.id,
-      isTrainPart: false
-    });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Error processing request: ' + error.message });
